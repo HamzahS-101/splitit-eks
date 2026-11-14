@@ -10,7 +10,7 @@ RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.30.6-alpine-slim
 
-USER root
+USER 0
 RUN apk upgrade --no-cache
 USER 101
 
