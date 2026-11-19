@@ -115,3 +115,11 @@ variable "db_username" {
   description = "Master username for the database."
   default     = "splitit"
 }
+
+# DNS
+
+variable "hosted_zone_name" {
+  type        = string
+  description = "Existing Route 53 hosted zone for the app and add-ons (e.g., eks.example.com)."
+  default     = "eks.hamzahsahal.com"
+}

@@ -22,7 +22,8 @@ module "eks" {
 
   addons = {
     vpc-cni = {
-      before_compute = true
+      before_compute           = true
+      service_account_role_arn = var.vpc_cni_role_arn
       configuration_values = jsonencode({
         env = {
           ENABLE_PREFIX_DELEGATION = "true"
@@ -41,6 +42,8 @@ module "eks" {
       min_size     = var.node_count
       max_size     = var.node_count
       desired_size = var.node_count
+
+      iam_role_attach_cni_policy = false
     }
   }
 }

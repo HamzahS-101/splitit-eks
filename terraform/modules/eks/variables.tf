@@ -32,3 +32,8 @@ variable "node_count" {
   type        = number
   description = "Fixed number of nodes in the managed node group."
 }
+
+variable "vpc_cni_role_arn" {
+  type        = string
+  description = "ARN of the IRSA role the VPC CNI (aws-node) uses instead of the node role."
+}

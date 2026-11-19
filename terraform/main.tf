@@ -18,6 +18,7 @@ module "eks" {
   admin_cidrs        = var.admin_cidrs
   node_instance_type = var.node_instance_type
   node_count         = var.node_count
+  vpc_cni_role_arn   = module.irsa.vpc_cni_role_arn
 }
 
 module "database" {
@@ -32,4 +33,18 @@ module "database" {
   db_allocated_storage = var.db_allocated_storage
   db_name              = var.db_name
   db_username          = var.db_username
+}
+
+data "aws_route53_zone" "zone" {
+  name = var.hosted_zone_name
+}
+
+module "irsa" {
+  source = "./modules/irsa"
+
+  project_name           = var.project_name
+  oidc_provider_arn      = module.eks.oidc_provider_arn
+  hosted_zone_arn        = data.aws_route53_zone.zone.arn
+  db_password_secret_arn = module.database.db_password_secret_arn
+  db_host_parameter_arn  = module.database.db_host_parameter_arn
 }
