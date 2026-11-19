@@ -83,3 +83,35 @@ variable "node_count" {
   description = "Fixed number of nodes in the managed node group."
   default     = 2
 }
+
+# Database
+
+variable "db_engine_version" {
+  type        = string
+  description = "PostgreSQL major version (matches the local compose image)."
+  default     = "16"
+}
+
+variable "db_instance_class" {
+  type        = string
+  description = "RDS instance class."
+  default     = "db.t4g.micro"
+}
+
+variable "db_allocated_storage" {
+  type        = number
+  description = "Allocated storage in GB."
+  default     = 20
+}
+
+variable "db_name" {
+  type        = string
+  description = "Name of the database created on the instance."
+  default     = "splitit"
+}
+
+variable "db_username" {
+  type        = string
+  description = "Master username for the database."
+  default     = "splitit"
+}
