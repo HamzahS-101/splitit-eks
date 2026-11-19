@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.cleanup.schedule | quote }}
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: cleanup
+            component: maintenance
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+          containers:
+            - name: cleanup
+              image: "{{ .Values.api.image }}:{{ .Values.image.tag }}"
+              args: ["cleanup"]
+              env:
+                - name: DB_HOST
+                  value: {{ .Values.db.host }}
+                - name: DB_SSLMODE
+                  value: require
+                - name: DB_PASSWORD_FILE
+                  value: /secrets/db_password
+                - name: CLEANUP_DAYS
+                  value: {{ .Values.cleanup.days | quote }}
+              volumeMounts:
+                - name: db-password
+                  mountPath: /secrets
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi
+          volumes:
+            - name: db-password
+              secret:
+                secretName: {{ .Values.db.passwordSecret }}

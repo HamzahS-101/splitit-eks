@@ -5,6 +5,7 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
         args: [--allow-multiple-documents]
+        exclude: ^splitit-helm/templates/
       - id: check-added-large-files
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -26,3 +27,9 @@ repos:
         entry: gofmt -l -w
         language: system
         types: [go]
+      - id: helm-lint
+        name: helm lint
+        entry: helm lint splitit-helm
+        language: system
+        files: ^splitit-helm/
+        pass_filenames: false

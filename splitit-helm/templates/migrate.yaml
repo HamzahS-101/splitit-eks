@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: migrate
+        component: migration
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: migrate
+          image: "{{ .Values.api.image }}:{{ .Values.image.tag }}"
+          args: ["migrate"]
+          env:
+            - name: DB_HOST
+              value: {{ .Values.db.host }}
+            - name: DB_SSLMODE
+              value: require
+            - name: DB_PASSWORD_FILE
+              value: /secrets/db_password
+          volumeMounts:
+            - name: db-password
+              mountPath: /secrets
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: db-password
+          secret:
+            secretName: {{ .Values.db.passwordSecret }}
