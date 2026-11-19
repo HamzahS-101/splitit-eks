@@ -1,0 +1,25 @@
+image:
+  tag: CHANGE_ME_GIT_SHA
+
+api:
+  image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-api
+  replicas: 2
+
+web:
+  image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-web
+  replicas: 2
+
+db:
+  host: CHANGE_ME_RDS_ENDPOINT
+  passwordSecret: db-password
+
+redis:
+  image: redis:7.4.12-alpine
+
+cleanup:
+  schedule: "0 3 * * *"
+  days: "30"
+
+gateway:
+  className: traefik
+  port: 8000
