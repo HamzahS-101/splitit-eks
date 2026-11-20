@@ -77,7 +77,7 @@ module "external_secrets_irsa" {
   use_name_prefix = false
 
   attach_external_secrets_policy        = true
-  external_secrets_secrets_manager_arns = [var.db_password_secret_arn]
+  external_secrets_secrets_manager_arns = [var.db_password_secret_arn, var.grafana_admin_secret_arn]
   external_secrets_ssm_parameter_arns   = [var.db_host_parameter_arn]
 
   oidc_providers = {

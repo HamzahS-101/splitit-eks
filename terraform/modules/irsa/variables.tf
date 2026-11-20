@@ -22,3 +22,8 @@ variable "db_host_parameter_arn" {
   type        = string
   description = "ARN of the SSM parameter External Secrets may read."
 }
+
+variable "grafana_admin_secret_arn" {
+  type        = string
+  description = "ARN of the Grafana admin secret External Secrets may read."
+}

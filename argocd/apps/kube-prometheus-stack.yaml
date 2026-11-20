@@ -1,0 +1,140 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 93.6.0
+    helm:
+      valuesObject:
+        crds:
+          enabled: false
+        alertmanager:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        prometheus:
+          prometheusSpec:
+            retention: 2d
+            serviceMonitorSelectorNilUsesHelmValues: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+        grafana:
+          admin:
+            existingSecret: grafana-admin
+          testFramework:
+            enabled: false
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: imported
+                  orgId: 1
+                  folder: Imported
+                  type: file
+                  options:
+                    path: /var/lib/grafana/dashboards/imported
+          dashboards:
+            imported:
+              traefik:
+                gnetId: 17347
+                revision: 9
+                datasource: Prometheus
+          extraObjects:
+            - apiVersion: external-secrets.io/v1
+              kind: ExternalSecret
+              metadata:
+                name: grafana-admin
+                namespace: monitoring
+              spec:
+                refreshInterval: 1h
+                secretStoreRef:
+                  kind: ClusterSecretStore
+                  name: aws-secrets-manager
+                target:
+                  name: grafana-admin
+                dataFrom:
+                  - extract:
+                      key: splitit/grafana/admin
+            - apiVersion: gateway.networking.k8s.io/v1
+              kind: Gateway
+              metadata:
+                name: grafana
+                namespace: monitoring
+                annotations:
+                  cert-manager.io/cluster-issuer: letsencrypt-prod
+              spec:
+                gatewayClassName: traefik
+                listeners:
+                  - name: http
+                    port: 8000
+                    protocol: HTTP
+                    hostname: grafana.eks.hamzahsahal.com
+                  - name: https
+                    port: 8443
+                    protocol: HTTPS
+                    hostname: grafana.eks.hamzahsahal.com
+                    tls:
+                      mode: Terminate
+                      certificateRefs:
+                        - name: grafana-tls
+            - apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: grafana-redirect
+                namespace: monitoring
+              spec:
+                parentRefs:
+                  - name: grafana
+                    sectionName: http
+                hostnames:
+                  - grafana.eks.hamzahsahal.com
+                rules:
+                  - filters:
+                      - type: RequestRedirect
+                        requestRedirect:
+                          scheme: https
+                          statusCode: 301
+            - apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
+              metadata:
+                name: grafana
+                namespace: monitoring
+              spec:
+                parentRefs:
+                  - name: grafana
+                    sectionName: https
+                hostnames:
+                  - grafana.eks.hamzahsahal.com
+                rules:
+                  - backendRefs:
+                      - name: kube-prometheus-stack-grafana
+                        port: 80
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

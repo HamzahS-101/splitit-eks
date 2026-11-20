@@ -18,6 +18,12 @@ spec:
             enabled: true
         gateway:
           enabled: false
+        metrics:
+          prometheus:
+            service:
+              enabled: true
+            serviceMonitor:
+              enabled: true
         service:
           annotations:
             service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
