@@ -1,6 +1,6 @@
 api:
   image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-api
-  tag: CHANGE_ME_GIT_SHA
+  tag: 8ea4b6b5a70745e7688b855206e3d1dfa49f35a3
   replicas: 2
 web:
   image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-web
