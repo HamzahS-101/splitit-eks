@@ -18,9 +18,14 @@ variable "app_subnet_ids" {
   description = "IDs of the private subnets for the control plane ENIs and the nodes."
 }
 
-variable "admin_cidrs" {
-  type        = list(string)
-  description = "CIDR blocks allowed to reach the public API endpoint (e.g., your home IP as x.x.x.x/32)."
+variable "admin_role_arn" {
+  type        = string
+  description = "ARN of the IAM role (SSO admin) given cluster admin through an access entry."
+}
+
+variable "github_actions_role_arn" {
+  type        = string
+  description = "ARN of the GitHub Actions OIDC role given cluster admin to bootstrap Argo CD."
 }
 
 variable "node_instance_type" {

@@ -26,6 +26,27 @@ resource "aws_db_subnet_group" "db_subnet_group" {
   }
 }
 
+ephemeral "random_password" "db" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "db_password" {
+  name                    = "${var.project_name}/db/password"
+  description             = "RDS master password, read by External Secrets"
+  recovery_window_in_days = 0
+
+  tags = {
+    Name = "${var.project_name}-db-password"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_password" {
+  secret_id                = aws_secretsmanager_secret.db_password.id
+  secret_string_wo         = ephemeral.random_password.db.result
+  secret_string_wo_version = 1
+}
+
 resource "aws_db_instance" "db" {
   identifier     = "${var.project_name}-db"
   engine         = "postgres"
@@ -36,9 +57,10 @@ resource "aws_db_instance" "db" {
   storage_type      = "gp3"
   storage_encrypted = true
 
-  db_name                     = var.db_name
-  username                    = var.db_username
-  manage_master_user_password = true
+  db_name             = var.db_name
+  username            = var.db_username
+  password_wo         = ephemeral.random_password.db.result
+  password_wo_version = 1
 
   db_subnet_group_name   = aws_db_subnet_group.db_subnet_group.name
   vpc_security_group_ids = [aws_security_group.rds_sg.id]

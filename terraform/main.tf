@@ -15,10 +15,12 @@ module "eks" {
   kubernetes_version = var.kubernetes_version
   vpc_id             = module.network.vpc_id
   app_subnet_ids     = module.network.app_subnet_ids
-  admin_cidrs        = var.admin_cidrs
   node_instance_type = var.node_instance_type
   node_count         = var.node_count
   vpc_cni_role_arn   = module.irsa.vpc_cni_role_arn
+
+  admin_role_arn          = var.admin_role_arn
+  github_actions_role_arn = var.github_actions_role_arn
 }
 
 module "database" {
@@ -47,4 +49,15 @@ module "irsa" {
   hosted_zone_arn        = data.aws_route53_zone.zone.arn
   db_password_secret_arn = module.database.db_password_secret_arn
   db_host_parameter_arn  = module.database.db_host_parameter_arn
+}
+
+module "argocd" {
+  source = "./modules/argocd"
+
+  argocd_chart_version      = var.argocd_chart_version
+  argocd_apps_chart_version = var.argocd_apps_chart_version
+  argocd_values             = file("${path.module}/../argocd/values.yaml")
+  root_app_values           = file("${path.module}/../argocd/root-app.yaml")
+
+  depends_on = [module.eks]
 }

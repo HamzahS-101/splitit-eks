@@ -10,9 +10,34 @@ module "eks" {
 
   endpoint_public_access       = true
   endpoint_private_access      = true
-  endpoint_public_access_cidrs = var.admin_cidrs
+  endpoint_public_access_cidrs = ["0.0.0.0/0"]
 
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = false
+
+  access_entries = {
+    admin = {
+      principal_arn = var.admin_role_arn
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+    github_actions = {
+      principal_arn = var.github_actions_role_arn
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 
   create_kms_key    = false
   encryption_config = null

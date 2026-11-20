@@ -67,9 +67,16 @@ variable "kubernetes_version" {
   default     = "1.37"
 }
 
-variable "admin_cidrs" {
-  type        = list(string)
-  description = "CIDR blocks allowed to reach the public API endpoint. Set with TF_VAR_admin_cidrs so your IP stays out of Git."
+variable "admin_role_arn" {
+  type        = string
+  description = "ARN of the IAM Identity Center admin role that gets cluster admin."
+  default     = "arn:aws:iam::188735374190:role/aws-reserved/sso.amazonaws.com/eu-west-2/AWSReservedSSO_AdministratorAccess_ee638b5066f1f753"
+}
+
+variable "github_actions_role_arn" {
+  type        = string
+  description = "ARN of the GitHub Actions OIDC role that runs Terraform and bootstraps Argo CD."
+  default     = "arn:aws:iam::188735374190:role/splitit-github-actions"
 }
 
 variable "node_instance_type" {
@@ -122,4 +129,18 @@ variable "hosted_zone_name" {
   type        = string
   description = "Existing Route 53 hosted zone for the app and add-ons (e.g., eks.example.com)."
   default     = "eks.hamzahsahal.com"
+}
+
+# Argo CD
+
+variable "argocd_chart_version" {
+  type        = string
+  description = "Version of the argo-cd Helm chart."
+  default     = "10.18.2"
+}
+
+variable "argocd_apps_chart_version" {
+  type        = string
+  description = "Version of the argocd-apps Helm chart that creates the root Application."
+  default     = "2.0.8"
 }
