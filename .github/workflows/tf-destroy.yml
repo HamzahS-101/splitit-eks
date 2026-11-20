@@ -1,0 +1,67 @@
+name: Terraform destroy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_ROLE_ARN: arn:aws:iam::188735374190:role/splitit-github-actions
+  CLUSTER_NAME: splitit-cluster
+
+defaults:
+  run:
+    working-directory: terraform
+
+jobs:
+  destroy:
+    name: Destroy
+    runs-on: ubuntu-24.04
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.17.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Delete the load balancer created by the cluster
+        run: |
+          if aws eks describe-cluster --name "$CLUSTER_NAME" >/dev/null 2>&1; then
+            aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+            kubectl delete applications --all -n argocd --ignore-not-found
+            kubectl delete svc traefik -n traefik --ignore-not-found --wait --timeout=5m
+          fi
+
+      - name: Check no load balancer is left
+        run: |
+          leftover=$(aws elbv2 describe-load-balancers --query "LoadBalancers[?starts_with(LoadBalancerName, 'k8s-traefik')].LoadBalancerName" --output text)
+          if [ -n "$leftover" ]; then
+            echo "Load balancer still exists: $leftover"
+            exit 1
+          fi
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform plan destroy
+        run: terraform plan -destroy -input=false -out=tfplan
+
+      - name: Terraform destroy
+        run: terraform apply -input=false tfplan

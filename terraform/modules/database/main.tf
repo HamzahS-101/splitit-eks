@@ -47,6 +47,11 @@ resource "aws_secretsmanager_secret_version" "db_password" {
   secret_string_wo_version = 1
 }
 
+resource "aws_cloudwatch_log_group" "db" {
+  name              = "/aws/rds/instance/${var.project_name}-db/postgresql"
+  retention_in_days = 7
+}
+
 resource "aws_db_instance" "db" {
   identifier     = "${var.project_name}-db"
   engine         = "postgres"
@@ -74,9 +79,13 @@ resource "aws_db_instance" "db" {
   skip_final_snapshot        = true
   deletion_protection        = false
 
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+
   tags = {
     Name = "${var.project_name}-db"
   }
+
+  depends_on = [aws_cloudwatch_log_group.db]
 }
 
 resource "aws_ssm_parameter" "db_host" {
