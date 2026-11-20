@@ -10,8 +10,9 @@ web:
   replicas: 2
 
 db:
-  host: CHANGE_ME_RDS_ENDPOINT
-  passwordSecret: db-password
+  secretName: db-password
+  passwordKey: splitit/db/password
+  hostParameter: /splitit/db/host
 
 redis:
   image: redis:7.4.12-alpine
@@ -22,4 +23,5 @@ cleanup:
 
 gateway:
   className: traefik
-  port: 8000
+  hostname: splitit.eks.hamzahsahal.com
+  issuer: letsencrypt-prod

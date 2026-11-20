@@ -53,7 +53,10 @@ spec:
               containerPort: 9090
           env:
             - name: DB_HOST
-              value: {{ .Values.db.host }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName }}
+                  key: db_host
             - name: DB_SSLMODE
               value: require
             - name: DB_PASSWORD_FILE
@@ -85,7 +88,7 @@ spec:
       volumes:
         - name: db-password
           secret:
-            secretName: {{ .Values.db.passwordSecret }}
+            secretName: {{ .Values.db.secretName }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
