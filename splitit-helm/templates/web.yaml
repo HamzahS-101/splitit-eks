@@ -45,7 +45,7 @@ spec:
             - pod-template-hash
       containers:
         - name: web
-          image: "{{ .Values.web.image }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.web.image }}:{{ .Values.web.tag }}"
           ports:
             - name: http
               containerPort: 8080

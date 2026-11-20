@@ -8,7 +8,7 @@ COPY . .
 RUN npm run build
 
 
-FROM nginxinc/nginx-unprivileged:1.30.6-alpine-slim
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine-slim
 
 USER 0
 RUN apk upgrade --no-cache
