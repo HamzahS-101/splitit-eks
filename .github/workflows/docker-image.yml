@@ -1,0 +1,86 @@
+name: Docker build, scan and push to ECR
+
+on:
+  pull_request:
+    paths:
+      - "api/**"
+      - "web/**"
+      - ".github/workflows/docker-image.yml"
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "web/**"
+      - ".github/workflows/docker-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_ROLE_ARN: arn:aws:iam::188735374190:role/splitit-github-actions
+
+jobs:
+  build:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, web]
+
+    env:
+      IMAGE: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-${{ matrix.service }}:${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Build image
+        run: docker build --provenance=false -t "$IMAGE" ${{ matrix.service }}
+
+      - name: Scan for fixable critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
+
+      - name: Configure AWS credentials
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2.1.7
+
+      - name: Push image
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: docker push "$IMAGE"
+
+      - name: Update image tag in Helm values
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          yq -i '.${{ matrix.service }}.tag = "${{ github.sha }}"' splitit-helm/values.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add splitit-helm/values.yaml
+          git commit -m "Update ${{ matrix.service }} image tag to ${GITHUB_SHA::7}"
+          for attempt in 1 2 3; do
+            git pull --rebase && git push && break
+            sleep 5
+          done
