@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: splitit
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/HamzahS-101/splitit-eks.git
+    targetRevision: main
+    path: splitit-helm
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: splitit
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+    syncOptions:
+      - CreateNamespace=true

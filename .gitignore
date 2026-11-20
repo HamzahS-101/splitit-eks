@@ -21,3 +21,4 @@ dist/
 crash.log
 tfplan
 *.tfplan
+terraform/modules/**/.terraform.lock.hcl

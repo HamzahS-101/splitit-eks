@@ -3,12 +3,41 @@ kind: Gateway
 metadata:
   name: splitit
   namespace: {{ .Release.Namespace }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.gateway.issuer }}
 spec:
   gatewayClassName: {{ .Values.gateway.className }}
   listeners:
     - name: http
-      port: {{ .Values.gateway.port }}
+      port: 8000
       protocol: HTTP
+      hostname: {{ .Values.gateway.hostname }}
+    - name: https
+      port: 8443
+      protocol: HTTPS
+      hostname: {{ .Values.gateway.hostname }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: splitit-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: splitit-redirect
+  namespace: {{ .Release.Namespace }}
+spec:
+  parentRefs:
+    - name: splitit
+      sectionName: http
+  hostnames:
+    - {{ .Values.gateway.hostname }}
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -18,7 +47,9 @@ metadata:
 spec:
   parentRefs:
     - name: splitit
-      sectionName: http
+      sectionName: https
+  hostnames:
+    - {{ .Values.gateway.hostname }}
   rules:
     - matches:
         - path:
