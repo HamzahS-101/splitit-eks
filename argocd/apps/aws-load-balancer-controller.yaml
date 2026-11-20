@@ -15,6 +15,7 @@ spec:
         region: eu-west-2
         vpcTags:
           Name: splitit-vpc
+        enableCertManager: true
         serviceAccount:
           name: aws-load-balancer-controller
           annotations:
