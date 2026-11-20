@@ -1,0 +1,15 @@
+applications:
+  splitit-root:
+    namespace: argocd
+    project: default
+    source:
+      repoURL: https://github.com/HamzahS-101/splitit-eks.git
+      targetRevision: main
+      path: argocd/apps
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: argocd
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true

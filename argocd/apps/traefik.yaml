@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    targetRevision: 42.4.1
+    helm:
+      valuesObject:
+        providers:
+          kubernetesGateway:
+            enabled: true
+        gateway:
+          enabled: false
+        service:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+            service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+          spec:
+            loadBalancerClass: service.k8s.aws/nlb
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+    syncOptions:
+      - CreateNamespace=true
