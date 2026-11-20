@@ -1,7 +1,9 @@
 api:
   image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-api
   tag: 8ea4b6b5a70745e7688b855206e3d1dfa49f35a3
-  replicas: 2
+  minReplicas: 2
+  maxReplicas: 4
+  cpuTarget: 70
 web:
   image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-web
   tag: 8ea4b6b5a70745e7688b855206e3d1dfa49f35a3

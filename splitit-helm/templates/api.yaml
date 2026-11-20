@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: api
   namespace: {{ .Release.Namespace }}
+  labels:
+    app: api
 spec:
   selector:
     app: api
@@ -10,6 +12,9 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
+    - name: metrics
+      port: 9090
+      targetPort: 9090
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -17,7 +22,6 @@ metadata:
   name: api
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: {{ .Values.api.replicas }}
   strategy:
     type: RollingUpdate
     rollingUpdate:

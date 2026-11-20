@@ -41,6 +41,10 @@ data "aws_route53_zone" "zone" {
   name = var.hosted_zone_name
 }
 
+data "aws_secretsmanager_secret" "grafana_admin" {
+  name = "${var.project_name}/grafana/admin"
+}
+
 module "irsa" {
   source = "./modules/irsa"
 
@@ -49,6 +53,8 @@ module "irsa" {
   hosted_zone_arn        = data.aws_route53_zone.zone.arn
   db_password_secret_arn = module.database.db_password_secret_arn
   db_host_parameter_arn  = module.database.db_host_parameter_arn
+
+  grafana_admin_secret_arn = data.aws_secretsmanager_secret.grafana_admin.arn
 }
 
 module "argocd" {
