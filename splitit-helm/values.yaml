@@ -6,7 +6,7 @@ api:
   cpuTarget: 70
 web:
   image: 188735374190.dkr.ecr.eu-west-2.amazonaws.com/splitit-web
-  tag: 8ea4b6b5a70745e7688b855206e3d1dfa49f35a3
+  tag: ac67d5d79c236f1e4d610750a62c18ab7fbfac88
   replicas: 2
 db:
   secretName: db-password
