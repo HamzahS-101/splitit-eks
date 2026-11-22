@@ -41,6 +41,7 @@ Create a group, share the link, add expenses and see who owes whom. A Go API and
 
 - [Repo layout](#repo-layout)
 - [Key components](#key-components)
+- [App Helm chart](#app-helm-chart)
 - [Deployment workflow](#deployment-workflow)
 - [Decisions and trade-offs](#decisions-and-trade-offs)
 - [Build practices](#build-practices)
@@ -94,14 +95,52 @@ Create a group, share the link, add expenses and see who owes whom. A Go API and
 | **Cluster** | EKS 1.37 with two ARM64 `t4g.medium` nodes across two AZs | [`terraform/modules/eks`](terraform/modules/eks) |
 | **Network** | Three subnet tiers and one NAT gateway | [`terraform/modules/network`](terraform/modules/network) |
 | **Database** | Private, encrypted, single-AZ RDS PostgreSQL | [`terraform/modules/database`](terraform/modules/database) |
+| **Cache** | Redis caches balances for 5 minutes, so repeat reads skip Postgres. A change to the group clears its entry, and the API falls back to Postgres if Redis is down | [`redis.yaml`](splitit-helm/templates/redis.yaml), [`cache`](api/internal/cache) |
 | **Pod permissions** | Five IRSA roles, one for each component that calls AWS | [`terraform/modules/irsa`](terraform/modules/irsa) |
 | **GitOps** | A root application managing 11 child applications, with pruning and self-heal | [`argocd`](argocd) |
-| **App chart** | Deployments, probes, disruption budgets, quota, API autoscaling (2 to 4 pods) and a migration Job | [`splitit-helm`](splitit-helm) |
+| **App chart** | Everything splitit runs in the cluster. See [App Helm chart](#app-helm-chart) | [`splitit-helm`](splitit-helm) |
 | **Ingress, DNS and TLS** | Traefik with the Gateway API, AWS Load Balancer Controller, ExternalDNS and cert-manager | [`argocd/apps`](argocd/apps) |
 | **Secrets** | External Secrets copies values from Secrets Manager and Parameter Store | [`externalsecret.yaml`](splitit-helm/templates/externalsecret.yaml) |
 | **Monitoring** | Prometheus scrapes the cluster, API and Traefik. Grafana has cluster and Traefik dashboards | [`kube-prometheus-stack.yaml`](argocd/apps/kube-prometheus-stack.yaml) |
 | **Scheduled job** | Kubernetes CronJob for inactive groups | [`cleanup.yaml`](splitit-helm/templates/cleanup.yaml) |
 | **CI/CD** | Image, GitOps and Terraform workflows, using OIDC to reach AWS | [`.github/workflows`](.github/workflows) |
+
+## App Helm chart
+
+[`splitit-helm`](splitit-helm) deploys web, API and Redis, along with their routes, secret, monitoring and Jobs.
+
+**Availability**
+
+| Feature | Setting | Why |
+|---------|---------|-----|
+| **Replicas** | Two web, two to four API, one Redis | Web and API can lose a pod and keep serving |
+| **Rolling updates** | Web and API: `maxUnavailable: 0`, `maxSurge: 1` | A new pod is ready before an old one stops |
+| **Pod disruption budgets** | Web and API: `maxUnavailable: 1` | A node drain can't evict both replicas at once |
+| **Unhealthy pod eviction** | `AlwaysAllow` | A broken pod can't block a node drain |
+| **Topology spread** | Web and API across nodes, `maxSkew: 1`, soft | Replicas are spread out, but can still schedule if only one node is left |
+| **Anti-affinity** | Preferred, on web | Favours putting web replicas on different nodes |
+| **Readiness probes** | API checks Postgres, web checks NGINX, Redis uses a ping | Pods only get traffic when they can serve it |
+| **Liveness probes** | API's doesn't check Postgres | A hung container restarts, but a database outage doesn't restart the API |
+| **Shutdown delay** | 5 second `preStop` on web | Traffic stops arriving before NGINX exits |
+| **Autoscaling** | API at 70% of requested CPU | Adds pods under load |
+
+**Resources**
+
+| Workload | CPU request | Memory request | Memory limit |
+|----------|-------------|----------------|--------------|
+| API, Redis, Jobs | 50m | 64Mi | 128Mi |
+| Web | 20m | 32Mi | 64Mi |
+
+- **No CPU limits:** pods can use spare CPU without being throttled.
+- **ResourceQuota:** caps the namespace at 1 CPU and 1536Mi of requests, 3Gi of memory limits and 50 pods.
+- **LimitRange:** gives default requests and a memory limit to any container without them, and caps each container at 1Gi.
+
+**Config and Jobs**
+
+- **ExternalSecret:** creates the database Secret, with the password from Secrets Manager and the host from Parameter Store.
+- **Gateway and HTTPRoutes:** HTTPS, the HTTP redirect and path routing to web and API.
+- **Migration Job:** a Helm hook, which Argo CD runs after each sync.
+- **ServiceMonitor:** tells Prometheus to scrape the API every 30 seconds.
 
 ## Deployment workflow
 
@@ -137,7 +176,7 @@ Terraform plans on `main`, then apply waits for approval on the protected `prod`
 
 **Bootstrap order**
 
-On a new cluster, sync waves create the applications in dependency order:
+On a new cluster, sync waves create the applications in dependency order. Argo CD doesn't assess the health of child Applications by default, so [`argocd/values.yaml`](argocd/values.yaml) restores that check for the waves to wait on, as described in the [Argo CD resource health docs](https://argo-cd.readthedocs.io/en/stable/operator-manual/health/#argocd-app).
 
 | Wave | Applications |
 |------|--------------|
@@ -153,14 +192,14 @@ On a new cluster, sync waves create the applications in dependency order:
 
 | Decision | Why | Trade-off |
 |----------|-----|-----------|
-| **App of apps, bootstrapped by Terraform** | One apply gives a working cluster, then Git manages what runs in it | Terraform needs access to the Kubernetes API |
-| **Gateway API with Traefik, not Ingress** | The standard successor to Ingress. Each app owns its routes and listeners | Extra CRDs, and Traefik is another component to run |
-| **RDS, not Postgres in the cluster** | The data isn't tied to a node or volume, and AWS handles backups and patching | Costs more, and single-AZ is a single point of failure |
+| **App of apps, bootstrapped by Terraform** | One apply gives a working cluster, then Git manages what runs in it | Terraform installs Argo CD with Helm, so the CI runner needs network access to the EKS API and admin rights in the cluster |
+| **Gateway API with Traefik, not Ingress** | The standard successor to Ingress. Each app owns its routes and listeners | Extra CRDs to install and keep up to date, where Ingress is built into Kubernetes |
+| **RDS, not Postgres in the cluster** | The data isn't tied to a node or volume, and AWS handles backups and patching | Costs more than running Postgres on the existing nodes |
 | **IRSA** | Each component gets its own temporary AWS credentials | Each cluster needs an OIDC provider. EKS Pod Identity is a simpler alternative |
-| **External Secrets and a write-only password** | The password is in neither Git nor Terraform state | Another controller, and rotation isn't automatic |
+| **External Secrets with AWS Secrets Manager** | The password is in neither Git nor Terraform state | Another controller, and rotation isn't automatic |
 | **cert-manager, not ACM** | TLS ends at Traefik, and each Gateway gets a certificate that renews itself | Certificates and keys live in the cluster |
 | **One NAT gateway** | About half the cost of one per AZ | If its AZ fails, both AZs lose outbound internet |
-| **Public EKS endpoint** | GitHub-hosted runners can reach it. IAM and access entries control who gets in | Reachable from the internet. A private endpoint with runners in the VPC would close it |
+| **Public EKS endpoint** | GitHub-hosted runners can reach it. IAM and access entries control who gets in | Reachable from the internet. A private endpoint with AWS CodeBuild-hosted GitHub Actions runners inside a VPC would close it |
 
 ## Build practices
 
@@ -195,17 +234,11 @@ On a new cluster, sync waves create the applications in dependency order:
 
 ## Troubleshooting
 
-### The load balancer controller's webhook rejected requests
-
-The chart generated a new webhook certificate on every render. Argo CD renders often, so the certificate Kubernetes trusted stopped matching the one the pods served, and Traefik never got a load balancer.
-
-**Fix:** `enableCertManager: true`, so cert-manager issues and manages the certificate.
-
 ### splitit deadlocked on first boot
 
 splitit synced before the External Secrets webhook was ready, so its secret was never created. The API waited for the secret, and the sync waited for the API, so it never finished or retried.
 
-**Fix:** sync waves, plus an [Application health check](argocd/values.yaml) so the root app waits on each wave's health.
+**Fix:** sync waves, plus an [Application health check](argocd/values.yaml) so the root app waits on each wave's health. The check comes from the [Argo CD docs](https://argo-cd.readthedocs.io/en/stable/operator-manual/health/#argocd-app).
 
 ### The load balancer blocked destroy
 
@@ -223,7 +256,7 @@ The load balancer is created by a controller, so Terraform doesn't know about it
 
 **Secrets**
 
-- Terraform generates the database password as an ephemeral value and writes it with write-only arguments.
+- Terraform generates the database password as an ephemeral value and writes it to AWS Secrets Manager.
 - Pods read the password from a mounted file, not an environment variable.
 
 **Network and encryption**
@@ -271,8 +304,6 @@ Replace the account ID, role ARNs, bucket, domain, zone ID and repo URL in `.git
 1. Run **Docker build, scan and push to ECR**.
 2. Run **Terraform plan**, review it, then approve **Terraform apply**. It creates 76 resources in about 18 minutes, and Argo CD installs the rest.
 
-**Cost:** about $0.29 an hour while running, and about $1.50 a month for what stays after a teardown.
-
 ![Pipelines passing](docs/images/pipelines-green.png)
 
 ## Teardown
@@ -298,7 +329,7 @@ The one-time setup stays. DNS records created by ExternalDNS also stay, so delet
 
 **Security**
 
-- A private EKS endpoint and a narrower GitHub Actions role.
+- A private EKS endpoint with AWS CodeBuild runners in a VPC, and a narrower GitHub Actions role.
 - NetworkPolicies, rate limiting and data subnets with no internet route.
 - Dropped capabilities, seccomp, high UIDs and no mounted service account tokens.
 - An admission policy, secret rotation and SSO for Argo CD and Grafana.
