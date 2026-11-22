@@ -71,6 +71,8 @@ spec:
             - name: db-password
               mountPath: /secrets
               readOnly: true
+          securityContext:
+            readOnlyRootFilesystem: true
           resources:
             requests:
               cpu: 50m
@@ -101,6 +103,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       app: api

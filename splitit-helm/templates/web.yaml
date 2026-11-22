@@ -34,6 +34,15 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: web
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -49,6 +58,8 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          securityContext:
+            readOnlyRootFilesystem: true
           resources:
             requests:
               cpu: 20m
@@ -67,6 +78,16 @@ spec:
               port: http
             periodSeconds: 20
             timeoutSeconds: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -75,6 +96,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       app: web
