@@ -44,6 +44,8 @@ spec:
           ports:
             - name: redis
               containerPort: 6379
+          securityContext:
+            readOnlyRootFilesystem: true
           resources:
             requests:
               cpu: 50m

@@ -1,0 +1,67 @@
+name: GitOps checks
+
+on:
+  pull_request:
+    paths:
+      - "argocd/**"
+      - "splitit-helm/**"
+      - ".github/workflows/gitops-checks.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: gitops-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12.3141.0
+        with:
+          directory: splitit-helm
+          framework: helm
+          soft_fail: true
+          output_format: cli,github_failed_only
+          output_file_path: console,checkov-results.md
+
+      - name: Comment Checkov results on the PR
+        uses: marocchino/sticky-pull-request-comment@v3.0.5
+        with:
+          header: checkov-gitops
+          path: checkov-results.md
+
+      - name: Lint Helm chart
+        id: lint
+        uses: stackrox/kube-linter-action@v1.0.7
+        with:
+          directory: splitit-helm
+          version: v0.8.3
+          fail-on-invalid-resource: true
+
+      - name: Comment lint results on the PR
+        if: always() && steps.lint.outcome != 'skipped'
+        uses: marocchino/sticky-pull-request-comment@v3.0.5
+        with:
+          header: kube-linter
+          path: kubelinter.log
+          message: |
+            ### kube-linter
+            ```
+            {{{content}}}
+            ```

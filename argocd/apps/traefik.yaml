@@ -13,6 +13,20 @@ spec:
     targetRevision: 42.4.1
     helm:
       valuesObject:
+        deployment:
+          replicas: 2
+        podDisruptionBudget:
+          enabled: true
+          maxUnavailable: 1
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: traefik
+            matchLabelKeys:
+              - pod-template-hash
         providers:
           kubernetesGateway:
             enabled: true
