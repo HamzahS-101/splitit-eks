@@ -8,6 +8,8 @@ Create a group, share the link, add expenses and see who owes whom. A Go API and
 
 ## Architecture
 
+![Architecture](docs/images/architecture.png)
+
 | Service | Built with | What it does |
 |---------|------------|--------------|
 | **web** | React, NGINX | Serves the static frontend to the browser |
@@ -97,7 +99,8 @@ Create a group, share the link, add expenses and see who owes whom. A Go API and
 | **Database** | Private, encrypted, single-AZ RDS PostgreSQL | [`terraform/modules/database`](terraform/modules/database) |
 | **Cache** | Redis caches balances for 5 minutes, so repeat reads skip Postgres. A change to the group clears its entry, and the API falls back to Postgres if Redis is down | [`redis.yaml`](splitit-helm/templates/redis.yaml), [`cache`](api/internal/cache) |
 | **Pod permissions** | Five IRSA roles, one for each component that calls AWS | [`terraform/modules/irsa`](terraform/modules/irsa) |
-| **GitOps** | A root application managing 11 child applications, with pruning and self-heal | [`argocd`](argocd) |
+| **GitOps** | Argo CD keeps the cluster matching Git, removing what's deleted from Git and reverting manual changes | [`argocd`](argocd) |
+| **App of apps** | One root Argo CD Application watches a folder of 11 child Applications, one each for splitit, the add-ons and shared config. Terraform only creates the root, which creates the rest. Adding a component means committing one Application file | [`root-app.yaml`](argocd/root-app.yaml), [`argocd/apps`](argocd/apps) |
 | **App chart** | Everything splitit runs in the cluster. See [App Helm chart](#app-helm-chart) | [`splitit-helm`](splitit-helm) |
 | **Ingress, DNS and TLS** | Traefik with the Gateway API, AWS Load Balancer Controller, ExternalDNS and cert-manager | [`argocd/apps`](argocd/apps) |
 | **Secrets** | External Secrets copies values from Secrets Manager and Parameter Store | [`externalsecret.yaml`](splitit-helm/templates/externalsecret.yaml) |
@@ -120,7 +123,7 @@ Create a group, share the link, add expenses and see who owes whom. A Go API and
 | **Topology spread** | Web and API across nodes, `maxSkew: 1`, soft | Replicas are spread out, but can still schedule if only one node is left |
 | **Anti-affinity** | Preferred, on web | Favours putting web replicas on different nodes |
 | **Readiness probes** | API checks Postgres, web checks NGINX, Redis uses a ping | Pods only get traffic when they can serve it |
-| **Liveness probes** | API's doesn't check Postgres | A hung container restarts, but a database outage doesn't restart the API |
+| **Liveness probes** | Web and API use `/healthz`, Redis uses a ping | A hung container is restarted automatically |
 | **Shutdown delay** | 5 second `preStop` on web | Traffic stops arriving before NGINX exits |
 | **Autoscaling** | API at 70% of requested CPU | Adds pods under load |
 
@@ -139,7 +142,7 @@ Create a group, share the link, add expenses and see who owes whom. A Go API and
 
 - **ExternalSecret:** creates the database Secret, with the password from Secrets Manager and the host from Parameter Store.
 - **Gateway and HTTPRoutes:** HTTPS, the HTTP redirect and path routing to web and API.
-- **Migration Job:** a Helm hook, which Argo CD runs after each sync.
+- **Migration Job:** creates and updates the database tables and indexes. It's a Helm hook, so Argo CD runs it after each sync.
 - **ServiceMonitor:** tells Prometheus to scrape the API every 30 seconds.
 
 ## Deployment workflow
@@ -310,7 +313,7 @@ Replace the account ID, role ARNs, bucket, domain, zone ID and repo URL in `.git
 
 Run **Terraform destroy** and approve it. It takes about 13 minutes.
 
-The one-time setup stays. DNS records created by ExternalDNS also stay, so delete those by hand if you aren't redeploying.
+The one-time setup stays, ready for the next deploy.
 
 ## Planned improvements
 
