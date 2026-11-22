@@ -28,7 +28,7 @@ export function HomePage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Split shared costs with one link</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Split trips, rent and nights out</h1>
         <p className="max-w-md leading-relaxed text-muted-foreground">
           Make a group, add who's in it and share the link. splitit keeps the running total and works out
           the fewest payments to settle up. No accounts needed.
